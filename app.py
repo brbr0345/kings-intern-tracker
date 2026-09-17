@@ -25,14 +25,14 @@ def parse_date(val):
     except Exception:
         return datetime.date.today()
 
-# Load tasks ordered so older ones stay on top and new ones stack at the bottom
+# Load tasks: older ones on top, new ones stacking at the bottom
 def fetch_tasks():
     response = supabase.table("tasks").select("*").order("id", desc=False).execute()
     return response.data
 
 tasks = fetch_tasks()
 
-# Header with Compact Add Button
+# Header Bar with Toggle Button
 if "show_form" not in st.session_state:
     st.session_state.show_form = False
 
@@ -55,46 +55,48 @@ if needing_help:
 else:
     st.success("✅ All projects are currently on track.")
 
-# New Task Form (Expandable)
+# Reactive Create Post Container (No st.form wrapper so it updates instantly)
 if st.session_state.show_form:
     with st.container(border=True):
         st.markdown("### 📝 Create New Post")
-        with st.form("new_task_form"):
-            col1, col2 = st.columns(2)
-            with col1:
-                assignee = st.text_input("Your Name", placeholder="e.g., Alex Kim")
-                project = st.text_input("Project / Task Name", placeholder="e.g., Bio/Biochem Needs Assessment")
-                post_date = st.date_input("Date Posted", value=datetime.date.today())
-                pin = st.text_input("Set 4-Digit PIN", type="password", max_chars=4, help="Required to edit or delete this post later.")
+        col1, col2 = st.columns(2)
+        with col1:
+            assignee = st.text_input("Your Name", placeholder="e.g., Alex Kim", key="new_name")
+            project = st.text_input("Project / Task Name", placeholder="e.g., Survey for King's Center programs", key="new_proj")
+            post_date = st.date_input("Date Posted", value=datetime.date.today(), key="new_date")
+            pin = st.text_input("Set 4-Digit PIN", type="password", max_chars=4, help="Required to edit or delete this post later.", key="new_pin")
 
-            with col2:
-                status = st.radio("Status", ["On Track", "Need Help"], horizontal=True)
-                helpers_needed = 0
-                blocker_note = ""
-                if status == "Need Help":
-                    helpers_needed = st.number_input("Helpers needed (set 0 if not sure)", min_value=0, max_value=10, value=1, step=1)
-                    blocker_note = st.text_area("Need help with:", placeholder="Where are you stuck?")
-                comments = st.text_area("Comments / General Notes", placeholder="Any milestones, links, or notes for the team...")
+        with col2:
+            status = st.radio("Status", ["On Track", "Need Help"], horizontal=True, key="new_status")
+            helpers_needed = 0
+            blocker_note = ""
+            
+            # Immediately visible when "Need Help" is selected
+            if status == "Need Help":
+                helpers_needed = st.number_input("Helpers needed (optional - 0 if unsure)", min_value=0, max_value=10, value=1, step=1, key="new_helpers")
+                blocker_note = st.text_area("Need help with:", placeholder="Where are you stuck or what assistance do you need?", key="new_blocker")
+            
+            comments = st.text_area("Comments / General Notes", placeholder="Any milestones, links, or notes for the team...", key="new_comments")
 
-            if st.form_submit_button("Publish Post", type="primary"):
-                if not assignee.strip() or not project.strip():
-                    st.warning("Please fill in both your name and project name.")
-                elif not pin.strip() or len(pin) < 4:
-                    st.warning("Please set a 4-digit PIN.")
-                else:
-                    supabase.table("tasks").insert({
-                        "assignee": assignee.strip(),
-                        "project": project.strip(),
-                        "post_date": post_date.isoformat(),
-                        "status": status,
-                        "helpers_needed": helpers_needed if (status == "Need Help" and helpers_needed > 0) else None,
-                        "blocker_note": blocker_note if status == "Need Help" else "",
-                        "comments": comments.strip(),
-                        "pin": pin
-                    }).execute()
-                    st.session_state.show_form = False
-                    st.toast("Post added successfully!")
-                    st.rerun()
+        if st.button("Publish Post", type="primary", key="publish_btn"):
+            if not assignee.strip() or not project.strip():
+                st.warning("Please enter both your name and project name.")
+            elif not pin.strip() or len(pin) < 4:
+                st.warning("Please set a 4-digit PIN.")
+            else:
+                supabase.table("tasks").insert({
+                    "assignee": assignee.strip(),
+                    "project": project.strip(),
+                    "post_date": post_date.isoformat(),
+                    "status": status,
+                    "helpers_needed": helpers_needed if (status == "Need Help" and helpers_needed > 0) else None,
+                    "blocker_note": blocker_note.strip() if status == "Need Help" else "",
+                    "comments": comments.strip(),
+                    "pin": pin
+                }).execute()
+                st.session_state.show_form = False
+                st.toast("Post added successfully!")
+                st.rerun()
 
 st.divider()
 
@@ -110,17 +112,14 @@ else:
         with st.container(border=True):
             col_date, col_name, col_proj, col_status, col_actions = st.columns([1.5, 2, 4.5, 2.5, 1.5])
             
-            # 1. Date Posted Indicator
             with col_date:
                 st.caption("POSTED")
                 st.markdown(f"🗓️ **{date_str}**")
 
-            # 2. Assignee Name
             with col_name:
                 st.caption("ASSIGNEE")
                 st.markdown(f"**👤 {t['assignee']}**")
 
-            # 3. Project, Blocker & Comments
             with col_proj:
                 st.caption("PROJECT & NOTES")
                 st.markdown(f"**{t['project']}**")
@@ -129,7 +128,6 @@ else:
                 if t.get("comments"):
                     st.caption(f"💬 {t['comments']}")
 
-            # 4. Status Badge
             with col_status:
                 st.caption("STATUS")
                 if t.get("status") == "Need Help":
@@ -140,7 +138,6 @@ else:
                 else:
                     st.success("🟢 On Track")
 
-            # 5. Edit and Delete Actions
             with col_actions:
                 st.caption("ACTIONS")
                 act_c1, act_c2 = st.columns(2)
