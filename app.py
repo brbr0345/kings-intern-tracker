@@ -5,6 +5,20 @@ import datetime
 
 st.set_page_config(page_title="King's Intern Board", page_icon="📌", layout="wide")
 
+# CSS to center the number in the helper counter input
+st.markdown(
+    """
+    <style>
+    input[aria-label="Helpers needed (optional)"] {
+        text-align: center !important;
+        font-weight: 600;
+        font-size: 1.05rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 # Live refresh every 10 seconds
 st_autorefresh(interval=10 * 1000, key="datarefresh")
 
@@ -16,6 +30,14 @@ def init_connection():
 
 supabase = init_connection()
 
+# Cache tasks query so UI buttons (+/-) don't wait for Supabase network latency
+@st.cache_data(ttl=5)
+def fetch_tasks():
+    response = supabase.table("tasks").select("*").order("id", desc=False).execute()
+    return response.data
+
+tasks = fetch_tasks()
+
 # Safe date parsing
 def parse_date(val):
     if not val:
@@ -24,13 +46,6 @@ def parse_date(val):
         return datetime.date.fromisoformat(str(val)[:10])
     except Exception:
         return datetime.date.today()
-
-# Load tasks: older on top, new ones stack at bottom
-def fetch_tasks():
-    response = supabase.table("tasks").select("*").order("id", desc=False).execute()
-    return response.data
-
-tasks = fetch_tasks()
 
 # Session State for helper counter stepper
 if "new_helpers_val" not in st.session_state:
@@ -90,7 +105,6 @@ if st.session_state.show_form:
             blocker_note = ""
             
             if status == "Need Help":
-                # Compact stepper control: [ - ] [ input ] [ + ]
                 st.write("**Helpers needed (optional)**")
                 h_sub, h_in, h_add, _ = st.columns([0.4, 0.9, 0.4, 2.3])
                 with h_sub:
@@ -128,6 +142,7 @@ if st.session_state.show_form:
                     "comments": comments.strip(),
                     "pin": pin
                 }).execute()
+                fetch_tasks.clear()
                 st.session_state.new_helpers_val = ""
                 st.session_state.show_form = False
                 st.toast("Post added successfully!")
@@ -188,7 +203,6 @@ else:
                         
                         edit_status = st.radio("Status", ["On Track", "Need Help"], index=0 if t.get("status") == "On Track" else 1, horizontal=True, key=f"st_{t['id']}")
                         
-                        # Compact helper box inside edit form
                         edit_h_col, _ = st.columns([1.2, 1.8])
                         with edit_h_col:
                             edit_helpers = st.number_input(
@@ -218,6 +232,7 @@ else:
                                     "blocker_note": edit_blocker.strip() if edit_status == "Need Help" else "",
                                     "comments": edit_comments.strip()
                                 }).eq("id", t["id"]).execute()
+                                fetch_tasks.clear()
                                 st.toast("Task updated!")
                                 st.rerun()
 
@@ -230,5 +245,6 @@ else:
                             st.error("Wrong PIN")
                         else:
                             supabase.table("tasks").delete().eq("id", t["id"]).execute()
+                            fetch_tasks.clear()
                             st.toast("Deleted!")
                             st.rerun()
