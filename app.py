@@ -5,15 +5,16 @@ import datetime
 
 st.set_page_config(page_title="King's Intern Board", page_icon="📌", layout="wide")
 
-# Center helper input and hide the Streamlit footer / "Created by" badge
+# CSS: Force-center helper stepper number and hide Streamlit footer / badges
 st.markdown(
     """
     <style>
-    /* Centers helper stepper input */
-    input[aria-label="Helpers needed (optional)"] {
+    /* Force-center the stepper number input */
+    div[data-testid="stTextInput"] input[aria-label*="Helpers needed"],
+    input[aria-label*="Helpers needed"] {
         text-align: center !important;
-        font-weight: 600;
-        font-size: 1.05rem;
+        font-weight: 600 !important;
+        font-size: 1.15rem !important;
     }
     /* Completely removes Streamlit footer, badge, and creator handle link */
     footer {visibility: hidden !important; display: none !important;}
@@ -38,7 +39,7 @@ def init_connection():
 supabase = init_connection()
 
 # Cache tasks query: desc=True ensures newest tasks stack at the top
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=10)
 def fetch_tasks():
     response = supabase.table("tasks").select("*").order("id", desc=True).execute()
     return response.data
@@ -54,14 +55,7 @@ def parse_date(val):
     except Exception:
         return datetime.date.today()
 
-# State management for form visibility
-if "show_form" not in st.session_state:
-    st.session_state.show_form = False
-
-def toggle_form():
-    st.session_state.show_form = not st.session_state.show_form
-
-# State management for helper stepper
+# Helper stepper state management
 if "new_helpers_val" not in st.session_state:
     st.session_state.new_helpers_val = ""
 
@@ -80,14 +74,87 @@ def inc_helpers():
     else:
         st.session_state.new_helpers_val = "1"
 
-# Header Bar with Instant-Toggle Button
-head_col, btn_col = st.columns([5, 1])
-with head_col:
-    st.title("🎯 King's Center Intern Status Board")
-with btn_col:
-    st.write("")
-    btn_label = "✖ Close" if st.session_state.show_form else "➕ Add Task"
-    st.button(btn_label, on_click=toggle_form, use_container_width=True)
+if "show_form" not in st.session_state:
+    st.session_state.show_form = False
+
+def toggle_form():
+    st.session_state.show_form = not st.session_state.show_form
+
+# Fragment decorator to isolate reruns so +/- updates instantly
+fragment = st.fragment if hasattr(st, "fragment") else (lambda f: f)
+
+@fragment
+def render_header_and_form():
+    head_col, btn_col = st.columns([5, 1])
+    with head_col:
+        st.title("🎯 King's Center Intern Status Board")
+    with btn_col:
+        st.write("")
+        btn_label = "✖ Close" if st.session_state.show_form else "➕ Add Task"
+        st.button(btn_label, on_click=toggle_form, use_container_width=True)
+
+    if st.session_state.show_form:
+        with st.container(border=True):
+            st.markdown("### 📝 Create New Post")
+            col1, col2 = st.columns(2)
+            with col1:
+                assignee = st.text_input("Your Name", placeholder="e.g., Alex Kim", key="new_name")
+                project = st.text_input("Project / Task Name", placeholder="e.g., Survey for King's Center programs", key="new_proj")
+                post_date = st.date_input("Date Posted", value=datetime.date.today(), key="new_date")
+                pin = st.text_input("Set 4-Digit PIN", type="password", max_chars=4, help="Required to edit or delete this post later.", key="new_pin")
+
+            with col2:
+                status = st.radio("Status", ["On Track", "Need Help"], horizontal=True, key="new_status")
+                blocker_note = ""
+                
+                if status == "Need Help":
+                    st.write("**Helpers needed (optional)**")
+                    h_sub, h_in, h_add, _ = st.columns([0.4, 0.9, 0.4, 2.3])
+                    with h_sub:
+                        st.button("➖", on_click=dec_helpers, key="btn_dec_h", use_container_width=True)
+                    with h_in:
+                        st.text_input(
+                            "Helpers needed (optional)",
+                            key="new_helpers_val",
+                            placeholder="",
+                            label_visibility="collapsed"
+                        )
+                    with h_add:
+                        st.button("➕", on_click=inc_helpers, key="btn_inc_h", use_container_width=True)
+
+                    blocker_note = st.text_area("Need help with: (optional)", placeholder="Where are you stuck or what assistance do you need?", key="new_blocker")
+                
+                comments = st.text_area("Comments (optional)", placeholder="Any milestones, links, or notes for the team...", key="new_comments")
+
+            if st.button("Publish Post", type="primary", key="publish_btn"):
+                helpers_str = str(st.session_state.get("new_helpers_val", "")).strip()
+                helpers_needed = int(helpers_str) if (status == "Need Help" and helpers_str.isdigit() and int(helpers_str) > 0) else None
+
+                if not assignee.strip() or not project.strip():
+                    st.warning("Please enter both your name and project name.")
+                elif not pin.strip() or len(pin) < 4:
+                    st.warning("Please set a 4-digit PIN.")
+                else:
+                    supabase.table("tasks").insert({
+                        "assignee": assignee.strip(),
+                        "project": project.strip(),
+                        "post_date": post_date.isoformat(),
+                        "status": status,
+                        "helpers_needed": helpers_needed,
+                        "blocker_note": blocker_note.strip() if status == "Need Help" else "",
+                        "comments": comments.strip(),
+                        "pin": pin
+                    }).execute()
+                    fetch_tasks.clear()
+                    st.session_state.new_helpers_val = ""
+                    st.session_state.show_form = False
+                    st.toast("Post added successfully!")
+                    try:
+                        st.rerun(scope="app")
+                    except TypeError:
+                        st.rerun()
+
+render_header_and_form()
 
 # Help / Blocker Alert Banner
 needing_help = [t for t in tasks if t.get("status") == "Need Help"]
@@ -99,65 +166,6 @@ if needing_help:
         st.markdown(f"- **{item['assignee']}** on *{item['project']}*{helpers_txt}{details_txt}")
 else:
     st.success("✅ All projects are currently on track.")
-
-# Reactive Create Post Container
-if st.session_state.show_form:
-    with st.container(border=True):
-        st.markdown("### 📝 Create New Post")
-        col1, col2 = st.columns(2)
-        with col1:
-            assignee = st.text_input("Your Name", placeholder="e.g., Alex Kim", key="new_name")
-            project = st.text_input("Project / Task Name", placeholder="e.g., Survey for King's Center programs", key="new_proj")
-            post_date = st.date_input("Date Posted", value=datetime.date.today(), key="new_date")
-            pin = st.text_input("Set 4-Digit PIN", type="password", max_chars=4, help="Required to edit or delete this post later.", key="new_pin")
-
-        with col2:
-            status = st.radio("Status", ["On Track", "Need Help"], horizontal=True, key="new_status")
-            blocker_note = ""
-            
-            if status == "Need Help":
-                st.write("**Helpers needed (optional)**")
-                h_sub, h_in, h_add, _ = st.columns([0.4, 0.9, 0.4, 2.3])
-                with h_sub:
-                    st.button("➖", on_click=dec_helpers, key="btn_dec_h", use_container_width=True)
-                with h_in:
-                    st.text_input(
-                        "Helpers needed (optional)",
-                        key="new_helpers_val",
-                        placeholder="",
-                        label_visibility="collapsed"
-                    )
-                with h_add:
-                    st.button("➕", on_click=inc_helpers, key="btn_inc_h", use_container_width=True)
-
-                blocker_note = st.text_area("Need help with: (optional)", placeholder="Where are you stuck or what assistance do you need?", key="new_blocker")
-            
-            comments = st.text_area("Comments (optional)", placeholder="Any milestones, links, or notes for the team...", key="new_comments")
-
-        if st.button("Publish Post", type="primary", key="publish_btn"):
-            helpers_str = str(st.session_state.get("new_helpers_val", "")).strip()
-            helpers_needed = int(helpers_str) if (status == "Need Help" and helpers_str.isdigit() and int(helpers_str) > 0) else None
-
-            if not assignee.strip() or not project.strip():
-                st.warning("Please enter both your name and project name.")
-            elif not pin.strip() or len(pin) < 4:
-                st.warning("Please set a 4-digit PIN.")
-            else:
-                supabase.table("tasks").insert({
-                    "assignee": assignee.strip(),
-                    "project": project.strip(),
-                    "post_date": post_date.isoformat(),
-                    "status": status,
-                    "helpers_needed": helpers_needed,
-                    "blocker_note": blocker_note.strip() if status == "Need Help" else "",
-                    "comments": comments.strip(),
-                    "pin": pin
-                }).execute()
-                fetch_tasks.clear()
-                st.session_state.new_helpers_val = ""
-                st.session_state.show_form = False
-                st.toast("Post added successfully!")
-                st.rerun()
 
 st.divider()
 
