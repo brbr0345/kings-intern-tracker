@@ -5,10 +5,16 @@ import datetime
 
 st.set_page_config(page_title="King's Intern Board", page_icon="📌", layout="wide")
 
-# CSS: Force-center helper stepper number and hide Streamlit footer / badges
+# CSS: Remove unused top blank space, center stepper number, and hide badges
 st.markdown(
     """
     <style>
+    /* Remove large top margin / unused whitespace */
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 2rem !important;
+    }
+    
     /* Force-center the stepper number input */
     div[data-testid="stTextInput"] input[aria-label*="Helpers needed"],
     input[aria-label*="Helpers needed"] {
@@ -16,6 +22,7 @@ st.markdown(
         font-weight: 600 !important;
         font-size: 1.15rem !important;
     }
+    
     /* Completely removes Streamlit footer, badge, and creator handle link */
     footer {visibility: hidden !important; display: none !important;}
     [data-testid="stStatusWidget"] {display: none !important;}
@@ -80,7 +87,7 @@ if "show_form" not in st.session_state:
 def toggle_form():
     st.session_state.show_form = not st.session_state.show_form
 
-# Fragment decorator to isolate reruns so +/- updates instantly
+# Fragment decorator to isolate reruns so +/- and form collapse instantly
 fragment = st.fragment if hasattr(st, "fragment") else (lambda f: f)
 
 @fragment
