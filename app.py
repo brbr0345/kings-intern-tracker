@@ -55,7 +55,7 @@ if needing_help:
 else:
     st.success("✅ All projects are currently on track.")
 
-# Reactive Create Post Container (No st.form wrapper so it updates instantly)
+# Reactive Create Post Container
 if st.session_state.show_form:
     with st.container(border=True):
         st.markdown("### 📝 Create New Post")
@@ -68,15 +68,15 @@ if st.session_state.show_form:
 
         with col2:
             status = st.radio("Status", ["On Track", "Need Help"], horizontal=True, key="new_status")
-            helpers_needed = 0
+            helpers_needed = None
             blocker_note = ""
             
-            # Immediately visible when "Need Help" is selected
             if status == "Need Help":
-                helpers_needed = st.number_input("Helpers needed (optional - 0 if unsure)", min_value=0, max_value=10, value=1, step=1, key="new_helpers")
-                blocker_note = st.text_area("Need help with:", placeholder="Where are you stuck or what assistance do you need?", key="new_blocker")
+                # Starts completely blank and allows optional helper counts
+                helpers_needed = st.number_input("Helpers needed (optional)", min_value=1, max_value=10, value=None, step=1, key="new_helpers")
+                blocker_note = st.text_area("Need help with: (optional)", placeholder="Where are you stuck or what assistance do you need?", key="new_blocker")
             
-            comments = st.text_area("Comments / General Notes", placeholder="Any milestones, links, or notes for the team...", key="new_comments")
+            comments = st.text_area("Comments (optional)", placeholder="Any milestones, links, or notes for the team...", key="new_comments")
 
         if st.button("Publish Post", type="primary", key="publish_btn"):
             if not assignee.strip() or not project.strip():
@@ -89,7 +89,7 @@ if st.session_state.show_form:
                     "project": project.strip(),
                     "post_date": post_date.isoformat(),
                     "status": status,
-                    "helpers_needed": helpers_needed if (status == "Need Help" and helpers_needed > 0) else None,
+                    "helpers_needed": helpers_needed if (status == "Need Help" and helpers_needed) else None,
                     "blocker_note": blocker_note.strip() if status == "Need Help" else "",
                     "comments": comments.strip(),
                     "pin": pin
@@ -152,9 +152,16 @@ else:
                         edit_date = st.date_input("Post Date", value=parsed_dt, key=f"d_{t['id']}")
                         
                         edit_status = st.radio("Status", ["On Track", "Need Help"], index=0 if t.get("status") == "On Track" else 1, horizontal=True, key=f"st_{t['id']}")
-                        edit_helpers = st.number_input("Helpers needed", min_value=0, max_value=10, value=int(t.get("helpers_needed") or 0), key=f"h_{t['id']}")
-                        edit_blocker = st.text_area("Help details", value=t.get("blocker_note") or "", key=f"bn_{t['id']}")
-                        edit_comments = st.text_area("Comments / Notes", value=t.get("comments") or "", key=f"c_{t['id']}")
+                        edit_helpers = st.number_input(
+                            "Helpers needed (optional)", 
+                            min_value=1, 
+                            max_value=10, 
+                            value=int(t.get("helpers_needed")) if t.get("helpers_needed") else None, 
+                            step=1, 
+                            key=f"h_{t['id']}"
+                        )
+                        edit_blocker = st.text_area("Need help with: (optional)", value=t.get("blocker_note") or "", key=f"bn_{t['id']}")
+                        edit_comments = st.text_area("Comments (optional)", value=t.get("comments") or "", key=f"c_{t['id']}")
 
                         if st.form_submit_button("Save Changes", type="primary"):
                             if t.get("pin") and edit_pin != t["pin"]:
@@ -167,8 +174,8 @@ else:
                                     "project": edit_project.strip(),
                                     "post_date": edit_date.isoformat(),
                                     "status": edit_status,
-                                    "helpers_needed": edit_helpers if (edit_status == "Need Help" and edit_helpers > 0) else None,
-                                    "blocker_note": edit_blocker if edit_status == "Need Help" else "",
+                                    "helpers_needed": edit_helpers if (edit_status == "Need Help" and edit_helpers) else None,
+                                    "blocker_note": edit_blocker.strip() if edit_status == "Need Help" else "",
                                     "comments": edit_comments.strip()
                                 }).eq("id", t["id"]).execute()
                                 st.toast("Task updated!")
