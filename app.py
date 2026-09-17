@@ -5,22 +5,15 @@ import datetime
 
 st.set_page_config(page_title="King's Intern Board", page_icon="📌", layout="wide")
 
-# CSS: Centers the stepper input and completely removes the Streamlit badge/footer
+# Center helper input
 st.markdown(
     """
     <style>
-    /* Centers helper stepper input */
     input[aria-label="Helpers needed (optional)"] {
         text-align: center !important;
         font-weight: 600;
         font-size: 1.05rem;
     }
-    /* Completely removes Streamlit footer, badge, and creator handle link */
-    footer {visibility: hidden !important; display: none !important;}
-    [data-testid="stStatusWidget"] {display: none !important;}
-    .viewerBadge_container__1QSob {display: none !important;}
-    div[class*="viewerBadge"] {display: none !important;}
-    a[href*="share.streamlit.io"] {display: none !important;}
     </style>
     """,
     unsafe_allow_html=True
@@ -196,7 +189,6 @@ else:
                     st.success("🟢 On Track")
 
             with col_actions:
-                st.caption("ACTIONS")
                 act_c1, act_c2 = st.columns(2)
                 
                 # Full Edit Popover (PIN Protected)
