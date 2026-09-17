@@ -5,7 +5,7 @@ import datetime
 
 st.set_page_config(page_title="King's Intern Board", page_icon="📌", layout="wide")
 
-# CSS to center the number in the helper counter input
+# Center the number input inside the helper stepper
 st.markdown(
     """
     <style>
@@ -30,10 +30,10 @@ def init_connection():
 
 supabase = init_connection()
 
-# Cache tasks query so UI buttons (+/-) don't wait for Supabase network latency
+# Cache tasks query: desc=True ensures newest tasks stack at the top
 @st.cache_data(ttl=5)
 def fetch_tasks():
-    response = supabase.table("tasks").select("*").order("id", desc=False).execute()
+    response = supabase.table("tasks").select("*").order("id", desc=True).execute()
     return response.data
 
 tasks = fetch_tasks()
@@ -47,7 +47,7 @@ def parse_date(val):
     except Exception:
         return datetime.date.today()
 
-# Session State for helper counter stepper
+# Helper stepper state management
 if "new_helpers_val" not in st.session_state:
     st.session_state.new_helpers_val = ""
 
@@ -150,7 +150,7 @@ if st.session_state.show_form:
 
 st.divider()
 
-# Stacking Horizontal Rows
+# Stacking Horizontal Rows (Newest on Top)
 st.subheader("Active Tasks")
 if not tasks:
     st.info("No tasks logged yet. Click '➕ Add Task' above to start.")
