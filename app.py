@@ -5,14 +5,20 @@ import datetime
 
 st.set_page_config(page_title="King's Intern Board", page_icon="📌", layout="wide")
 
-# Center the number input inside the helper stepper
+# Center helper input and hide the Streamlit footer / "Created by" badge
 st.markdown(
     """
     <style>
+    /* Centers helper stepper input */
     input[aria-label="Helpers needed (optional)"] {
         text-align: center !important;
         font-weight: 600;
         font-size: 1.05rem;
+    }
+    /* Completely removes 'Created by' badge and 'Hosted with Streamlit' footer */
+    footer, [data-testid="stStatusWidget"], .viewerBadge_container__1QSob, .viewerBadge_link__1QSob {
+        display: none !important;
+        visibility: hidden !important;
     }
     </style>
     """,
@@ -30,7 +36,7 @@ def init_connection():
 
 supabase = init_connection()
 
-# Cache tasks query: desc=True ensures newest tasks stack at the top
+# Cache tasks query: desc=True keeps newest tasks at the top
 @st.cache_data(ttl=5)
 def fetch_tasks():
     response = supabase.table("tasks").select("*").order("id", desc=True).execute()
