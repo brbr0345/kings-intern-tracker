@@ -5,15 +5,22 @@ import datetime
 
 st.set_page_config(page_title="King's Intern Board", page_icon="📌", layout="wide")
 
-# Center helper input
+# Center helper input and hide the Streamlit footer / "Created by" badge
 st.markdown(
     """
     <style>
+    /* Centers helper stepper input */
     input[aria-label="Helpers needed (optional)"] {
         text-align: center !important;
         font-weight: 600;
         font-size: 1.05rem;
     }
+    /* Completely removes Streamlit footer, badge, and creator handle link */
+    footer {visibility: hidden !important; display: none !important;}
+    [data-testid="stStatusWidget"] {display: none !important;}
+    .viewerBadge_container__1QSob {display: none !important;}
+    div[class*="viewerBadge"] {display: none !important;}
+    a[href*="share.streamlit.io"] {display: none !important;}
     </style>
     """,
     unsafe_allow_html=True
@@ -47,7 +54,14 @@ def parse_date(val):
     except Exception:
         return datetime.date.today()
 
-# Helper stepper state management
+# State management for form visibility
+if "show_form" not in st.session_state:
+    st.session_state.show_form = False
+
+def toggle_form():
+    st.session_state.show_form = not st.session_state.show_form
+
+# State management for helper stepper
 if "new_helpers_val" not in st.session_state:
     st.session_state.new_helpers_val = ""
 
@@ -66,17 +80,14 @@ def inc_helpers():
     else:
         st.session_state.new_helpers_val = "1"
 
-# Header Bar with Toggle Button
-if "show_form" not in st.session_state:
-    st.session_state.show_form = False
-
+# Header Bar with Instant-Toggle Button
 head_col, btn_col = st.columns([5, 1])
 with head_col:
     st.title("🎯 King's Center Intern Status Board")
 with btn_col:
     st.write("")
-    if st.button("➕ Add Task" if not st.session_state.show_form else "✖ Close", use_container_width=True):
-        st.session_state.show_form = not st.session_state.show_form
+    btn_label = "✖ Close" if st.session_state.show_form else "➕ Add Task"
+    st.button(btn_label, on_click=toggle_form, use_container_width=True)
 
 # Help / Blocker Alert Banner
 needing_help = [t for t in tasks if t.get("status") == "Need Help"]
